@@ -26,6 +26,11 @@ ENV/
 # IDE
 .vscode/
 .idea/
+.vercel/
+.railway/
+.env
+.env.*
+!.env.example
 *.swp
 *.swo
 *~
@@ -37,6 +42,8 @@ Thumbs.db
 # Project specific - EXCLUDE from git
 publication/
 data/
+*.onnx
+*.npz
 *.wav
 *.mp3
 *.mp4
@@ -46,6 +53,9 @@ data/
 
 # Logs
 *.log
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Sample README - don't need it
 Sample README copy.md

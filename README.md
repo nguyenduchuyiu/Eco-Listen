@@ -1,260 +1,66 @@
-# SoundPlot: Birdsong Acoustic Analysis & Neural Synthesis Framework
+# Forest Sentinel
 
-[![arXiv](https://img.shields.io/badge/arXiv-2026.XXXXX-b31b1b.svg)](https://arxiv.org/)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![ORCID](https://img.shields.io/badge/ORCID-0009--0003--9548--3235-green.svg)](https://orcid.org/0009-0003-9548-3235)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18298180.svg)](https://doi.org/10.5281/zenodo.18298180)
+Forest Sentinel is an edge-ready ecological acoustics platform for monitoring biodiversity and detecting illegal activity from continuous forest audio.
 
-An open-source framework for analyzing birdsong recordings through acoustic feature extraction, dimensionality reduction, and neural audio synthesis. Transform audio signals into interactive 3D visualizations and compare original vs synthesized acoustic trajectories in real-time.
+**Live:** [forest-sentinel-beige.vercel.app](https://forest-sentinel-beige.vercel.app)
 
-## Project Overview
+## The idea
 
-SoundPlot transforms birdsong recordings into measurable acoustic features and maps them into multi-dimensional space. By converting sound into geometry, patterns emerge that reveal the internal logic of natural soundscapes. Key capabilities:
+Vietnam's forests are rich in biodiversity, but inventories still depend heavily on camera traps and manual surveys. Forest Sentinel converts 24/7 acoustic recordings into an interactive stream of ecological intelligence:
 
-- **Acoustic Feature Extraction**: Pitch contours, spectral centroids, MFCCs, rhythm patterns
-- **Neural Audio Synthesis**: Griffin-Lim reconstruction from mel spectrograms
-- **3D Visualization**: Interactive Three.js-based timbre space exploration
-- **Comparative Analysis**: Side-by-side original vs synthesized waveform comparison
+- Detect birds, amphibians, insects, and mammals.
+- Rank likely species candidates.
+- Locate every detection on a synchronized timeline.
+- Alert on chainsaw and gunshot signatures with evidence timestamps.
+- Visualize the living soundscape in an interactive 3D acoustic space.
+- Track acoustic activity, richness, and ecosystem health over time.
 
-## Framework Statistics
+## End-to-end pipeline
 
-| Metric | Value |
-|--------|-------|
-| Audio Formats Supported | WAV, MP3, FLAC, OGG, M4A |
-| Sample Rate | 22.05 kHz (auto-resampled) |
-| Max Audio Duration | 5 minutes (auto-trimmed) |
-| Mel Correlation | 0.929 (avg synthesis quality) |
-| Visualization FPS | 60 FPS (up to 5000 points) |
-
-## Architecture
-
-```
-sound_plot/
-|-- app.py                  # Flask web server
-|-- ui/
-|   +-- index.html          # Three.js 3D visualization
-|-- src/
-|   |-- audio/
-|   |   |-- loader.py       # Multi-format audio I/O
-|   |   |-- preprocessor.py # Normalization & segmentation
-|   |   |-- synthesizer.py  # Griffin-Lim synthesis
-|   |   +-- comparator.py   # Quality metrics
-|   |-- features/
-|   |   |-- extractor.py    # Unified feature API
-|   |   |-- spectral.py     # Spectral centroid, bandwidth
-|   |   |-- pitch.py        # pYIN F0 extraction
-|   |   |-- mfcc.py         # MFCC computation
-|   |   +-- temporal.py     # Rhythm & onset detection
-|   |-- analysis/
-|   |   +-- reducer.py      # PCA/UMAP reduction
-|   +-- utils/
-|       |-- visualization.py
-|       +-- comparison.py
-|-- data/
-|   |-- uploads/            # User audio input
-|   |-- sessions/           # Analysis output per session
-|   +-- comparisons/        # Generated comparison figures
-+-- publication/            # Academic paper (LaTeX)
+```text
+Solar forest sensor
+  → edge preprocessing
+  → overlapping 5-second windows
+  → Perch v2 acoustic embeddings
+  → biodiversity + threat detection
+  → timeline, 3D soundscape, alerts, health index
 ```
 
-## Installation
+The dashboard includes a one-click 60-second scenario containing birds, frogs, insects, mammals, mixed biophony, chainsaw, and gunshots. During playback, the live detector changes with the current inference window and raises alerts exactly where threat evidence appears.
 
-### Prerequisites
-- Python 3.9+
-- FFmpeg (optional, for some audio formats)
+## Stack
 
-### Setup
+- **AI:** Perch v2 ONNX, 1536-dimensional embeddings, coarse-taxon linear probe
+- **Audio:** Librosa, SoundFile, overlapping five-second edge windows
+- **Backend:** Flask, Gunicorn, ONNX Runtime
+- **Visualization:** Three.js, Canvas timelines, synchronized anomaly graphs
+- **Deployment:** Vercel frontend + Railway inference service
+
+## Run locally
+
 ```bash
-git clone https://github.com/[your-repo]/sound_plot.git
-cd sound_plot
 python -m venv .venv
-.venv\Scripts\Activate.ps1  # Windows
+source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-### Dependencies
-```
-librosa>=0.10.0
-numpy>=1.24.0
-scipy>=1.11.0
-soundfile>=0.12.0
-scikit-learn>=1.3.0
-Flask>=2.3.0
-Flask-Cors>=4.0.0
-matplotlib>=3.7.0
-umap-learn>=0.5.0
-hdbscan>=0.8.0
-```
-
-## Quick Start
-
-### Run the Web Server
-```bash
+./scripts/setup_perch_mvp.sh
 python app.py
-# Open http://localhost:5000 in your browser
 ```
 
-### Web Interface Features
-1. **Load Audio**: Upload WAV/MP3 files (max 16MB)
-2. **View Analysis**: Dual 3D plots show original vs synthesized trajectories
-3. **Play/Pause**: Independent playback for each audio stream
-4. **Download**: Export audio, spectrograms, and analysis PNGs
+Open [http://localhost:5000](http://localhost:5000).
 
-### Run Examples
 ```bash
-# Basic synthesis comparison
-python examples/synthesis_comparison.py
-
-# Generate birdsong sample
-python generate_birdsong.py
+pytest -q
 ```
 
-## Output Structure
+## Deployment
 
-Each analysis session creates an organized output folder:
+The full FP32 Perch model runs as a single-worker Railway service to keep memory predictable. Vercel serves the dashboard and communicates directly with the inference API.
 
-```
-data/sessions/{audio_name}_{session_id}/
-|-- original.wav           # Preprocessed input audio
-|-- synthesized.wav        # Griffin-Lim reconstruction
-|-- comparison.png         # Spectrogram comparison figure
-|-- analysis.png           # PCA feature space visualization
-+-- metadata.json          # Metrics, parameters, timestamps
-```
+- Dashboard: [forest-sentinel-beige.vercel.app](https://forest-sentinel-beige.vercel.app)
+- API: [forest-sentinel-production.up.railway.app](https://forest-sentinel-production.up.railway.app)
 
-### Quality Metrics
-| Metric | Description | Typical Value |
-|--------|-------------|---------------|
-| SNR (dB) | Signal-to-noise ratio | -0.81 ± 0.42 |
-| Waveform Corr | Time-domain correlation | ~0.00 (phase-independent) |
-| Spectral Corr | STFT magnitude correlation | 0.57 ± 0.12 |
-| Mel Corr | Perceptual similarity | 0.93 ± 0.04 |
+## MVP scope
 
-## Module Details
+Species rankings, threat thresholds, and the health index are hackathon-stage outputs designed for rapid field validation and adaptation with Vietnamese recordings.
 
-### 1. Audio Loader (`src/audio/loader.py`)
-- Loads multiple formats via librosa/soundfile
-- Automatic resampling to 22.05 kHz mono
-- Metadata extraction (duration, original sample rate)
-
-### 2. Audio Preprocessor (`src/audio/preprocessor.py`)
-- Min-max normalization to [-1, 1]
-- Silence removal (energy-based thresholding)
-- Segmentation for feature extraction
-
-### 3. Audio Synthesizer (`src/audio/synthesizer.py`)
-- Mel spectrogram extraction (128 bands)
-- Griffin-Lim phase reconstruction (32 iterations)
-- Post-synthesis normalization
-
-### 4. Feature Extractor (`src/features/extractor.py`)
-- Spectral: centroid, bandwidth, contrast, rolloff
-- Pitch: pYIN fundamental frequency estimation
-- MFCCs: 13 coefficients with deltas
-- Temporal: onset detection, zero-crossing rate
-
-### 5. Dimensionality Reducer (`src/analysis/reducer.py`)
-- PCA for linear projection (fast, interpretable)
-- UMAP for non-linear manifold learning
-- Configurable components (2D/3D)
-
-### 6. Comparison Visualizer (`src/utils/comparison.py`)
-- Side-by-side spectrogram plots
-- Feature space embedding overlays
-- Automated metrics computation
-
-## Sample Visualizations
-
-### Spectrogram Comparison
-![Comparison](assets/images/comparison.png)
-*Original vs synthesized birdsong: waveforms, spectrograms, and mel spectrograms*
-
-### Feature Space Analysis
-![Embedding](assets/images/embedding_comparison.png)
-*PCA projection showing drift between original (blue) and synthesized (green) features*
-
-## Technology Stack
-
-### Core Audio Processing
-| Library | Purpose |
-|---------|---------|
-| **Librosa** | Feature extraction, spectrograms |
-| **SoundFile** | Audio I/O (WAV, FLAC) |
-| **NumPy/SciPy** | Signal processing, FFT |
-
-### Machine Learning
-| Library | Purpose |
-|---------|---------|
-| **Scikit-learn** | PCA, clustering |
-| **UMAP-learn** | Non-linear dimensionality reduction |
-| **HDBSCAN** | Density-based clustering |
-
-### Visualization
-| Library | Purpose |
-|---------|---------|
-| **Three.js** | WebGL 3D rendering |
-| **Matplotlib** | Static figure generation |
-| **Flask** | Web server backend |
-
-## Future Enhancements
-
-- [ ] Neural vocoder integration (HiFi-GAN, MelGAN)
-- [ ] Real-time streaming analysis
-- [ ] Multi-species comparison interface
-- [ ] Automatic call-type clustering (HDBSCAN)
-- [ ] Export to Raven selection tables
-
-## References
-
-- pYIN Algorithm: [Mauch & Dixon, 2014](https://www.eecs.qmul.ac.uk/~simond/pub/2014/MauchDixon-pYIN-ICASSP2014.pdf)
-- Griffin-Lim: [Griffin & Lim, 1984](https://ieeexplore.ieee.org/document/1164317)
-- Librosa: [McFee et al., 2015](https://librosa.org/)
-- Three.js: [https://threejs.org/](https://threejs.org/)
-
-## Data Availability
-
-| Resource | Link |
-|----------|------|
-| **Source Code** | [GitHub](https://github.com/naqchoalimehdi/SoundPlot-An-Open-Source-Framework-for-Birdsong-Acoustic-Analysis-and-Neural-Synthesis-) |
-| **Zenodo Archive** | [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18298180.svg)](https://doi.org/10.5281/zenodo.18298180) |
-| **Paper (Preprint)** | [arXiv](https://arxiv.org/) *(ID pending)* |
-| **Demo Audio** | Included in `data/` directory |
-
-## Citation
-
-If you use SoundPlot in your research, please cite:
-
-```bibtex
-Mehdi, N. A., Adeel, M., & Larik, A. A. (2026). SoundPlot: An Open-Source Framework for Birdsong Acoustic Analysis and Neural Synthesis with Interactive 3D Visualization. ArXiv. https://arxiv.org/abs/2601.12752
-```
-
-```yaml
-# Citation File Format (CFF)
-cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
-authors:
-- family-names: "Mehdi"
-  given-names: "Naqcho Ali"
-  orcid: "https://orcid.org/0009-0003-9548-3235"
-- family-names: "Adeel"
-  given-names: "Mohammad"
-- family-names: "Larik"
-  given-names: "Aizaz Ali"
-title: "SoundPlot: An Open-Source Framework for Birdsong Acoustic Analysis and Neural Synthesis"
-version: 1.0.0
-doi: 10.5281/zenodo.18298180
-date-released: 2026-01-19
-```
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-© January 2026  
-**Author**: Naqcho Ali Mehdi  
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue)](https://www.linkedin.com/in/naqcho-ali-mehdi-baltistani-machine-learning-engineer/)
-[![GitHub](https://img.shields.io/badge/GitHub-Follow-black)](https://github.com/naqchoalimehdi)
-[![ORCID](https://img.shields.io/badge/ORCID-0009--0003--9548--3235-green)](https://orcid.org/0009-0003-9548-3235)
+Built on the open-source SoundPlot framework. MIT licensed; see [LICENSE](LICENSE).

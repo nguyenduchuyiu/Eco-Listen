@@ -1,11 +1,5 @@
-"""
-SoundPlot Web Server.
+"""Forest Sentinel ecological-acoustics demo server."""
 
-Serves the 3D visualization UI and provides an API for
-analyzing and synthesizing birdsong audio.
-"""
-
-import os
 import secrets
 import threading
 import uuid
@@ -14,13 +8,12 @@ import json
 import numpy as np
 import soundfile as sf
 import librosa
-from flask import Flask, request, jsonify, send_from_directory, render_template_string
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
 # Import backend modules
-from src.audio import AudioLoader, AudioPreprocessor, AudioSynthesizer
-from src.features import FeatureExtractor
+from src.audio import AudioLoader, AudioPreprocessor, PerchAnalyzer
 
 app = Flask(__name__, static_folder="ui")
 CORS(app)
@@ -37,6 +30,24 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 
 # Global task storage
 TASKS = {}
+_PERCH_ANALYZER = None
+_PERCH_LOCK = threading.Lock()
+
+
+def get_perch_analyzer():
+    """Lazily load the 409 MB model once per server process."""
+    global _PERCH_ANALYZER
+    if _PERCH_ANALYZER is None:
+        with _PERCH_LOCK:
+            if _PERCH_ANALYZER is None:
+                model_dir = Path("data/models/perch")
+                _PERCH_ANALYZER = PerchAnalyzer(
+                    model_dir / "perch_v2.onnx",
+                    model_dir / "labels.csv",
+                    Path("data/birdclef_sample/taxonomy.csv"),
+                    model_dir / "coarse_taxa_probe.npz",
+                )
+    return _PERCH_ANALYZER
 
 # --- Helper Functions ---
 
@@ -75,6 +86,70 @@ def normalize_features(features):
         })
     return result
 
+
+def build_heuristic_summary(audio, sr):
+    """Small, explainable baseline for the hackathon dashboard.
+
+    This is deliberately labelled as a heuristic, not a trained species model.
+    It converts acoustic activity into a useful demo signal while a proper
+    labelled classifier is being collected for deployment.
+    """
+    hop = 512
+    rms = librosa.feature.rms(y=audio, hop_length=hop)[0]
+    centroid = librosa.feature.spectral_centroid(y=audio, sr=sr, hop_length=hop)[0]
+    flatness = librosa.feature.spectral_flatness(y=audio, hop_length=hop)[0]
+    times = librosa.times_like(rms, sr=sr, hop_length=hop)
+    energy_floor = max(float(np.percentile(rms, 35)), 0.025)
+    active = rms > energy_floor
+    activity_rate = float(np.mean(active))
+    mean_centroid = float(np.mean(centroid[active])) if np.any(active) else float(np.mean(centroid))
+    mean_flatness = float(np.mean(flatness[active])) if np.any(active) else float(np.mean(flatness))
+
+    if mean_centroid > 2600 and mean_flatness < 0.42:
+        label = "Bird vocalisation"
+    elif mean_centroid < 1500:
+        label = "Amphibian / low-frequency call"
+    else:
+        label = "Insect chorus / mixed biophony"
+
+    confidence = int(np.clip(56 + activity_rate * 28 + (1 - mean_flatness) * 14, 55, 92))
+    # Choose widely separated high-activity moments for a compact event timeline.
+    ranked = np.argsort(rms)[::-1]
+    event_indices = []
+    min_gap = max(1, int(8 * sr / hop))
+    for idx in ranked:
+        if all(abs(int(idx) - old) > min_gap for old in event_indices):
+            event_indices.append(int(idx))
+        if len(event_indices) == 3:
+            break
+    events = [{"time": round(float(times[i]), 1), "label": label, "match_score": max(50, confidence - n * 4)}
+              for n, i in enumerate(sorted(event_indices))]
+    health_score = int(np.clip(42 + activity_rate * 34 + (1 - mean_flatness) * 24, 20, 96))
+    return {
+        "mode": "fallback",
+        "model_source": "Acoustic heuristic fallback — Perch unavailable",
+        "health_score": health_score,
+        "activity_rate": int(activity_rate * 100),
+        "dominant_label": label,
+        "match_score": confidence,
+        "richness": 1,
+        "threat_status": "No high-confidence threat signature in this clip",
+        "events": events,
+        "inference_ms": 0,
+        "windows_analyzed": len(rms),
+        "group_distribution": {
+            "Aves": 70 if "Bird" in label else 10,
+            "Amphibia": 70 if "Amphibian" in label else 10,
+            "Insecta": 70 if "Insect" in label else 10,
+            "Mammalia": 70 if "Mammal" in label else 10,
+        },
+        "window_predictions": [],
+        "species_candidates": [],
+        "threat_timeline": [],
+        "threat_events": [],
+        "threat_threshold": 75,
+    }
+
 def run_analysis_task(task_id, file_path, save_name):
     """Heavy processing task run in a separate thread."""
     try:
@@ -109,22 +184,8 @@ def run_analysis_task(task_id, file_path, save_name):
         original_path = session_folder / "original.wav"
         sf.write(str(original_path), audio, sr)
         
-        # 5. Extract features for synthesis
-        update_status("Extracting features for synthesis...", 30)
-        synthesizer = AudioSynthesizer(sample_rate=sr)
-        synth_features = synthesizer.extract_for_synthesis(audio)
-        
-        # 6. Synthesize
-        update_status("Neural Synthesis (Generating birdsong)...", 50)
-        synthesized = synthesizer.synthesize_from_mel(synth_features["mel_spectrogram"])
-        synthesized = preprocessor.normalize(synthesized)
-        
-        # Save synthesized to session
-        synth_path = session_folder / "synthesized.wav"
-        sf.write(str(synth_path), synthesized, sr)
-        
-        # 7. Extract time-series features for visualization
-        update_status("Mapping acoustic trajectories...", 65)
+        # 5. Extract time-series features for visualization
+        update_status("Mapping acoustic habitat...", 45)
         
         def extract_time_series(signal):
             """Vectorized extraction of time-series features."""
@@ -166,114 +227,70 @@ def run_analysis_task(task_id, file_path, save_name):
                 return []
 
         original_points = extract_time_series(audio)
-        synth_points = extract_time_series(synthesized)
+        update_status("Running Perch edge inference...", 65)
+        try:
+            forest_summary = get_perch_analyzer().analyze(audio, sr)
+        except Exception as model_error:
+            print(f"Perch inference unavailable, using fallback: {model_error}")
+            forest_summary = build_heuristic_summary(audio, sr)
+            forest_summary["model_error"] = str(model_error)
         
-        # 8. Generate comparison visualization (spectrograms)
-        update_status("Generating visualizations...", 80)
+        # 6. Generate ecological visualizations.
+        update_status("Generating ecological report...", 75)
         comparison_image_url = None
         analysis_image_url = None
         
         try:
             import matplotlib
-            matplotlib.use('Agg')  # Non-interactive backend for speed
+            matplotlib.use('Agg')
             import matplotlib.pyplot as plt
-            
-            from src.audio import SynthesisComparator
-            
-            comparator = SynthesisComparator(sample_rate=sr)
-            metrics = comparator.compute_comparison_metrics(audio, synthesized)
-            
-            # Quick spectrogram comparison plot (simplified)
+
             fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-            fig.suptitle("Original vs Synthesized Birdsong", fontsize=14, fontweight='bold')
-            
-            # Waveforms
+            fig.suptitle("Forest Sentinel — Ecological Acoustic Report", fontsize=14, fontweight='bold')
+
             times_orig = np.arange(len(audio)) / sr
-            times_synth = np.arange(len(synthesized)) / sr
-            
             axes[0, 0].plot(times_orig, audio, color='#2196F3', linewidth=0.5)
-            axes[0, 0].set_title('Original Waveform')
+            axes[0, 0].set_title('Habitat Waveform')
             axes[0, 0].set_xlabel('Time (s)')
             axes[0, 0].set_ylabel('Amplitude')
-            
-            axes[0, 1].plot(times_synth, synthesized, color='#4CAF50', linewidth=0.5)
-            axes[0, 1].set_title('Synthesized Waveform')
+
+            rms = librosa.feature.rms(y=audio, hop_length=512)[0]
+            rms_times = librosa.times_like(rms, sr=sr, hop_length=512)
+            axes[0, 1].fill_between(rms_times, rms, color='#8aad22', alpha=0.8)
+            axes[0, 1].set_title('Acoustic Activity')
             axes[0, 1].set_xlabel('Time (s)')
-            axes[0, 1].set_ylabel('Amplitude')
-            
-            # Mel Spectrograms (fast computation)
+            axes[0, 1].set_ylabel('RMS Energy')
+
             S_orig = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=64, hop_length=1024)
-            S_synth = librosa.feature.melspectrogram(y=synthesized, sr=sr, n_mels=64, hop_length=1024)
-            
             axes[1, 0].imshow(librosa.power_to_db(S_orig, ref=np.max), aspect='auto', origin='lower', cmap='magma')
-            axes[1, 0].set_title('Original Mel Spectrogram')
+            axes[1, 0].set_title('Mel Spectrogram')
             axes[1, 0].set_ylabel('Mel Bin')
-            
-            axes[1, 1].imshow(librosa.power_to_db(S_synth, ref=np.max), aspect='auto', origin='lower', cmap='magma')
-            axes[1, 1].set_title('Synthesized Mel Spectrogram')
-            axes[1, 1].set_ylabel('Mel Bin')
-            
-            # Add metrics
-            metric_text = f"SNR: {metrics['snr_db']:.2f} dB | Mel Corr: {metrics['mel_correlation']:.3f}"
+
+            centroid = librosa.feature.spectral_centroid(y=audio, sr=sr, hop_length=512)[0]
+            centroid_times = librosa.times_like(centroid, sr=sr, hop_length=512)
+            axes[1, 1].plot(centroid_times, centroid, color='#7b5cff', linewidth=0.8)
+            axes[1, 1].set_title('Spectral Centroid / Brightness')
+            axes[1, 1].set_xlabel('Time (s)')
+            axes[1, 1].set_ylabel('Frequency (Hz)')
+
+            metric_text = (f"Health: {forest_summary['health_score']}/100 | "
+                           f"Activity: {forest_summary['activity_rate']}% | "
+                           f"Dominant: {forest_summary['dominant_label']}")
             fig.text(0.5, 0.02, metric_text, ha='center', fontsize=10, 
                     bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
-            
+
             plt.tight_layout(rect=[0, 0.05, 1, 0.95])
             comparison_path = session_folder / "comparison.png"
             plt.savefig(str(comparison_path), dpi=100, bbox_inches='tight')
             plt.close(fig)
             comparison_image_url = f"/data/sessions/{session_folder.name}/comparison.png"
-            
-            # 9. Generate feature analysis (PCA) - simplified
-            update_status("Generating feature analysis...", 90)
-            from src.analysis import DimensionalityReducer
-            from src.features import FeatureExtractor
-            
-            extractor = FeatureExtractor(sample_rate=sr)
-            orig_segments = preprocessor.segment(audio, 0.3, 0.15)  # Larger segments, fewer points
-            synth_segments = preprocessor.segment(synthesized, 0.3, 0.15)
-            
-            n_segments = min(len(orig_segments), len(synth_segments), 30)  # Reduced for speed
-            
-            if n_segments > 5:  # Only if we have enough segments
-                orig_features = []
-                synth_features_list = []
-                
-                for i in range(n_segments):
-                    orig_feat = list(extractor.extract_compact(orig_segments[i][0]).values())
-                    synth_feat = list(extractor.extract_compact(synth_segments[i][0]).values())
-                    orig_features.append(orig_feat)
-                    synth_features_list.append(synth_feat)
-                
-                orig_features = np.array(orig_features)
-                synth_features_arr = np.array(synth_features_list)
-                
-                reducer = DimensionalityReducer(n_components=2, method="pca")
-                reducer.fit(orig_features)
-                orig_embeddings = reducer.transform(orig_features)
-                synth_embeddings = reducer.transform(synth_features_arr)
-                
-                # Simple embedding plot
-                fig, ax = plt.subplots(figsize=(8, 6))
-                ax.scatter(orig_embeddings[:, 0], orig_embeddings[:, 1], c='#2196F3', label='Original', alpha=0.7)
-                ax.scatter(synth_embeddings[:, 0], synth_embeddings[:, 1], c='#4CAF50', marker='x', label='Synthesized', alpha=0.7)
-                ax.set_xlabel('Dim 1')
-                ax.set_ylabel('Dim 2')
-                ax.set_title('Feature Space: Original vs Synthesized')
-                ax.legend()
-                ax.grid(True, alpha=0.3)
-                
-                analysis_path = session_folder / "analysis.png"
-                plt.savefig(str(analysis_path), dpi=100, bbox_inches='tight')
-                plt.close(fig)
-                analysis_image_url = f"/data/sessions/{session_folder.name}/analysis.png"
-            
+
             # Save metadata
             metadata = {
                 "original_file": save_name,
                 "duration_seconds": duration,
                 "sample_rate": sr,
-                "metrics": metrics
+                "forest_summary": forest_summary
             }
             with open(session_folder / "metadata.json", "w") as f:
                 json.dump(metadata, f, indent=2)
@@ -291,11 +308,11 @@ def run_analysis_task(task_id, file_path, save_name):
             "progress": 100,
             "result": {
                 "original_points": original_points,
-                "synth_points": synth_points,
-                "synth_audio_url": f"/data/sessions/{session_folder.name}/synthesized.wav",
                 "original_audio_url": f"/data/sessions/{session_folder.name}/original.wav",
                 "comparison_image_url": comparison_image_url,
                 "analysis_image_url": analysis_image_url,
+                "forest_summary": forest_summary,
+                "duration_seconds": duration,
                 "session_folder": str(session_folder)
             }
         })
@@ -312,6 +329,12 @@ def run_analysis_task(task_id, file_path, save_name):
 def index():
     """Serve the main UI."""
     return send_from_directory('ui', 'index.html')
+
+
+@app.route('/api/health')
+def health():
+    """Cheap container health check; model remains lazily loaded."""
+    return jsonify({"status": "ok", "service": "forest-sentinel"})
 
 @app.route('/api/analyze', methods=['POST'])
 def analyze():
@@ -352,6 +375,27 @@ def task_status(task_id):
         return jsonify({'error': 'Task not found'}), 404
     return jsonify(task)
 
+
+@app.route('/api/demo', methods=['POST'])
+def analyze_demo():
+    """Run the prepared multi-species and threat monitoring scenario."""
+    demo_path = Path("data/demo/forest_monitoring_scenario.wav")
+    if not demo_path.exists():
+        return jsonify({"error": "Demo missing; run scripts/build_demo_soundscape.py"}), 404
+    task_id = str(uuid.uuid4())
+    TASKS[task_id] = {
+        'status': 'Loading 60-second forest scenario...',
+        'progress': 0,
+        'result': None,
+        'error': False
+    }
+    thread = threading.Thread(
+        target=run_analysis_task,
+        args=(task_id, demo_path, demo_path.name),
+    )
+    thread.start()
+    return jsonify({'taskId': task_id})
+
 @app.route('/data/sessions/<path:filepath>')
 def serve_sessions(filepath):
     return send_from_directory('data/sessions', filepath)
@@ -365,6 +409,6 @@ def serve_results(filename):
     return send_from_directory(app.config['RESULTS_FOLDER'], filename)
 
 if __name__ == '__main__':
-    print("Starting SoundPlot Server...")
+    print("Starting Forest Sentinel Server...")
     print("Open http://localhost:5000 in your browser")
     app.run(debug=True, port=5000, threaded=True)

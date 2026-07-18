@@ -1,730 +1,105 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SoundPlot - Analysis & Synthesis</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            background: #0a0a0f;
-            color: #fff;
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-
-        /* Layout */
-        .viewport-container {
-            display: flex;
-            flex: 1;
-            position: relative;
-        }
-
-        .viewport {
-            flex: 1;
-            position: relative;
-            border-right: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .viewport:last-child {
-            border-right: none;
-        }
-
-        canvas {
-            width: 100% !important;
-            height: 100% !important;
-            display: block;
-        }
-
-        /* Overlays */
-        .label {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0, 0, 0, 0.6);
-            padding: 5px 15px;
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            pointer-events: none;
-        }
-
-        .label.original {
-            color: #00d4aa;
-            border-color: #00d4aa;
-        }
-
-        .label.synth {
-            color: #ff0066;
-            border-color: #ff0066;
-        }
-
-        /* Controls */
-        .controls-bar {
-            height: 80px;
-            background: rgba(20, 20, 30, 0.95);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-            padding: 0 40px;
-            z-index: 100;
-        }
-
-        .btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #fff;
-            padding: 10px 24px;
-            border-radius: 25px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-1px);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn.primary {
-            background: linear-gradient(135deg, #00d4aa, #00a885);
-            border: none;
-            font-weight: 600;
-        }
-
-        .btn.primary:hover {
-            background: linear-gradient(135deg, #00e5b8, #00b892);
-            box-shadow: 0 0 15px rgba(0, 212, 170, 0.4);
-        }
-
-        .btn.original {
-            background: linear-gradient(135deg, #00d4aa, #00a885);
-            border: none;
-            font-weight: 600;
-        }
-
-        .btn.original:hover {
-            box-shadow: 0 0 15px rgba(0, 212, 170, 0.5);
-        }
-
-        .btn.original.playing {
-            animation: pulse-original 1s infinite;
-        }
-
-        .btn.synth {
-            background: linear-gradient(135deg, #ff0066, #cc0052);
-            border: none;
-            font-weight: 600;
-        }
-
-        .btn.synth:hover {
-            box-shadow: 0 0 15px rgba(255, 0, 102, 0.5);
-        }
-
-        .btn.synth.playing {
-            animation: pulse-synth 1s infinite;
-        }
-
-        @keyframes pulse-original {
-
-            0%,
-            100% {
-                box-shadow: 0 0 5px rgba(0, 212, 170, 0.5);
-            }
-
-            50% {
-                box-shadow: 0 0 20px rgba(0, 212, 170, 0.8);
-            }
-        }
-
-        @keyframes pulse-synth {
-
-            0%,
-            100% {
-                box-shadow: 0 0 5px rgba(255, 0, 102, 0.5);
-            }
-
-            50% {
-                box-shadow: 0 0 20px rgba(255, 0, 102, 0.8);
-            }
-        }
-
-        .time-display {
-            font-family: 'Courier New', monospace;
-            font-size: 1.2rem;
-            color: #00d4aa;
-            min-width: 60px;
-            text-align: center;
-        }
-
-        .downloads-section {
-            background: rgba(20, 20, 30, 0.95);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 15px 40px;
-            display: none;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: center;
-            gap: 15px;
-        }
-
-        .downloads-section.active {
-            display: flex;
-        }
-
-        .downloads-section a {
-            color: #00d4aa;
-            text-decoration: none;
-            padding: 8px 16px;
-            border: 1px solid #00d4aa;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            transition: all 0.2s;
-        }
-
-        .downloads-section a:hover {
-            background: rgba(0, 212, 170, 0.2);
-        }
-
-        .downloads-section .label {
-            color: #888;
-            font-size: 0.85rem;
-            position: static;
-            background: none;
-            border: none;
-            padding: 0;
-        }
-
-        /* Loading */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(10, 10, 15, 0.9);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s;
-        }
-
-        .loading-overlay.active {
-            opacity: 1;
-            pointer-events: all;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 3px solid rgba(255, 255, 255, 0.1);
-            border-top-color: #00d4aa;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* Status */
-        .status-text {
-            color: #888;
-            margin-top: 20px;
-            font-size: 0.9rem;
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-    </style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Forest Sentinel — Biodiversity Mission Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box} :root{--bg:#060907;--panel:rgba(14,21,17,.78);--line:rgba(219,255,225,.12);--muted:#7f9486;--text:#eff8f0;--bird:#c9ff46;--frog:#4de6c1;--insect:#ffd166;--mammal:#b98cff;--threat:#ff5e57}
+    html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Manrope,system-ui,sans-serif} body{overflow:hidden}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;background:radial-gradient(circle at 45% 32%,rgba(50,105,68,.18),transparent 36%),linear-gradient(rgba(255,255,255,.017) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.017) 1px,transparent 1px);background-size:auto,40px 40px,40px 40px}
+    button{font:inherit}.shell{height:100vh;padding:14px;display:grid;grid-template-rows:48px 58px minmax(0,1fr) 225px;gap:10px}.glass{border:1px solid var(--line);background:linear-gradient(145deg,rgba(20,31,24,.86),rgba(8,13,10,.73));box-shadow:inset 0 1px rgba(255,255,255,.045),0 18px 60px rgba(0,0,0,.25);backdrop-filter:blur(16px)}
+    .top{display:flex;align-items:center;justify-content:space-between;padding:0 4px}.top-actions{display:flex;align-items:center;gap:12px}.upload-top{border:0;border-radius:10px;background:var(--bird);color:#10160d;padding:10px 16px;font:700 9px Manrope;letter-spacing:.08em;cursor:pointer;box-shadow:0 0 22px rgba(201,255,70,.18)}.upload-top:hover{transform:translateY(-1px);box-shadow:0 0 30px rgba(201,255,70,.3)}.brand{display:flex;align-items:center;gap:12px}.brandmark{width:28px;height:28px;border:1px solid rgba(201,255,70,.5);border-radius:50%;position:relative;box-shadow:0 0 22px rgba(201,255,70,.13)}.brandmark:after{content:"";position:absolute;width:6px;height:13px;background:var(--bird);border-radius:7px 0 7px 0;left:11px;top:6px;transform:rotate(32deg)}h1{font-size:13px;letter-spacing:.16em;text-transform:uppercase;margin:0}.sub{font:9px DM Mono;color:var(--muted);letter-spacing:.12em;margin-top:3px}.live{display:flex;align-items:center;gap:8px;font:9px DM Mono;color:#a8b7ac;letter-spacing:.1em}.pulse{width:6px;height:6px;border-radius:50%;background:var(--bird);box-shadow:0 0 12px var(--bird);animation:pulse 1.8s infinite}@keyframes pulse{50%{opacity:.35}}
+    .pipeline{border-radius:15px;display:grid;grid-template-columns:repeat(5,1fr);padding:8px 10px;overflow:hidden}.step{position:relative;display:flex;align-items:center;gap:9px;padding:0 12px}.step:not(:last-child):after{content:"→";position:absolute;right:-4px;color:#3e5144}.step i{font-style:normal;display:grid;place-items:center;width:29px;height:29px;border:1px solid var(--line);border-radius:9px;color:var(--muted);font:10px DM Mono}.step.active i,.step.done i{color:var(--bird);border-color:rgba(201,255,70,.35);background:rgba(201,255,70,.06)}.step b{font-size:10px;font-weight:600;display:block}.step small{font:7px DM Mono;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.step strong{color:var(--bird);font-weight:500}
+    .main{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:10px}.universe{position:relative;overflow:hidden;border-radius:20px}.universe canvas{display:block;width:100%;height:100%}.head{position:absolute;z-index:3;top:17px;left:19px;pointer-events:none}.eyebrow{font:8px DM Mono;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}.head h2{margin:5px 0 0;font-size:20px;letter-spacing:-.03em}.head p{margin:5px 0;color:#91a398;font-size:9px}.legend{position:absolute;z-index:3;right:18px;top:18px;display:flex;gap:10px;font:7px DM Mono;color:#a8b5ac;text-transform:uppercase}.legend span{display:flex;align-items:center;gap:4px}.dot{width:6px;height:6px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}.axisnote{position:absolute;z-index:3;bottom:15px;left:19px;font:7px DM Mono;color:#647369;letter-spacing:.09em;text-transform:uppercase}.scanline{position:absolute;z-index:2;top:0;bottom:0;width:1px;background:linear-gradient(transparent,var(--bird),transparent);left:0;opacity:0;box-shadow:0 0 16px var(--bird);pointer-events:none}.scanline.playing{opacity:.55}.live-detect{position:absolute;z-index:4;right:18px;bottom:18px;width:210px;padding:10px 12px;border:1px solid rgba(201,255,70,.25);border-radius:12px;background:rgba(7,13,9,.82);backdrop-filter:blur(10px)}.live-detect small{font:7px DM Mono;color:var(--bird);letter-spacing:.1em}.live-detect small i{font-style:normal}.live-detect b{display:block;margin-top:5px;font-size:13px}.live-detect span{font:8px DM Mono;color:var(--muted)}.live-alert{position:absolute;z-index:6;left:50%;top:18px;transform:translate(-50%,-80px);opacity:0;padding:10px 18px;border:1px solid var(--threat);border-radius:10px;background:rgba(78,12,9,.9);color:#ffaaa5;font:700 10px DM Mono;letter-spacing:.1em;transition:.25s;box-shadow:0 0 45px rgba(255,94,87,.35)}.live-alert.on{transform:translate(-50%,0);opacity:1;animation:alertPulse .75s infinite alternate}@keyframes alertPulse{to{box-shadow:0 0 65px rgba(255,94,87,.65)}}
+    .side{display:grid;grid-template-rows:120px minmax(0,1fr) 82px;gap:10px;min-height:0}.card{border-radius:17px;padding:14px;min-height:0}.kpi{display:grid;grid-template-columns:90px 1fr;align-items:center}.ring{width:80px;height:80px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--bird) 0deg,#243027 0);position:relative}.ring:before{content:"";position:absolute;inset:7px;border-radius:50%;background:#0d1410}.ring div{z-index:1;text-align:center}.ring strong{font:24px DM Mono;color:var(--bird)}.ring small{display:block;font:7px DM Mono;color:var(--muted)}.metric-label{font:8px DM Mono;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}.dominant{font-size:15px;font-weight:600;margin:6px 0 3px}.confidence{font:9px DM Mono;color:#a9b7ad}.summaryline{display:flex;gap:10px;margin-top:9px;font:8px DM Mono;color:var(--muted)}.summaryline b{color:var(--text);font-weight:500}
+    .who{display:flex;flex-direction:column;overflow:hidden}.cardtitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}.cardtitle b{font-size:10px;text-transform:uppercase;letter-spacing:.11em}.cardtitle span{font:7px DM Mono;color:var(--muted)}.taxa{display:grid;gap:8px}.taxonrow{display:grid;grid-template-columns:62px 1fr 28px;gap:7px;align-items:center;font:8px DM Mono}.taxonrow span:first-child{color:#afbbb2}.bar{height:5px;background:#1b2720;border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;width:0;border-radius:5px;background:var(--c);box-shadow:0 0 8px var(--c);transition:width .7s}.species{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);overflow:auto}.species-title{font:7px DM Mono;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}.species-item{display:grid;grid-template-columns:17px 1fr auto;gap:7px;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04)}.rank{font:8px DM Mono;color:var(--bird)}.species-item b{display:block;font-size:9px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.species-item em{font:7px DM Mono;color:var(--muted)}.species-item strong{font:8px DM Mono;font-weight:400;color:#b8c8bc}.disclaimer{font:6px DM Mono;color:#5f7165;margin-top:6px;text-transform:uppercase}
+    .threatcard{position:relative;overflow:hidden}.threatcard:after{content:"";position:absolute;width:90px;height:90px;border:1px solid rgba(77,230,193,.12);border-radius:50%;right:-35px;top:-40px}.threathead{display:flex;align-items:center;gap:9px}.shield{width:24px;height:24px;display:grid;place-items:center;border-radius:8px;background:rgba(77,230,193,.1);color:var(--frog)}.threatcard.alert{border-color:rgba(255,94,87,.48);background:linear-gradient(145deg,rgba(65,18,16,.84),rgba(18,10,9,.8))}.threatcard.alert .shield{background:rgba(255,94,87,.15);color:var(--threat)}.threathead b{font-size:10px}.threathead span{display:block;font:7px DM Mono;color:var(--muted);margin-top:2px}.threatmsg{margin-top:9px;font:7px/1.4 DM Mono;color:#9eb0a3;text-transform:uppercase}
+    .bottom{border-radius:17px;padding:11px 14px;display:grid;grid-template-columns:1fr .9fr;grid-template-rows:minmax(0,1fr) 31px;gap:0 18px;min-height:0}.graphbox{display:grid;grid-template-rows:28px minmax(0,1fr);min-width:0;min-height:0}.graphbox+.graphbox{border-left:1px solid var(--line);padding-left:18px}.timeline-head{display:flex;justify-content:space-between;align-items:flex-start}.timeline-head b{font-size:10px;text-transform:uppercase;letter-spacing:.1em}.timeline-head span{font:7px DM Mono;color:var(--muted)}#timeline,#anomaly{width:100%;height:100%;display:block}.anomaly-head span{color:#ff8a84}.alert-feed{position:absolute;right:16px;top:34px;display:flex;gap:5px;z-index:2}.alert-pill{padding:4px 6px;border:1px solid rgba(255,94,87,.45);border-radius:5px;background:rgba(62,14,12,.75);color:#ff8a84;font:6px DM Mono}.anomaly-wrap{position:relative;min-height:0}.controls{grid-column:1/-1;display:flex;align-items:center;gap:8px;padding-top:5px;border-top:1px solid rgba(255,255,255,.05)}input[type=file]{display:none}.btn{border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.03);color:#cbd8ce;padding:6px 10px;font-size:8px;cursor:pointer}.btn:hover{border-color:rgba(201,255,70,.45);color:var(--bird)}.btn.primary{background:var(--bird);color:#10160d;border-color:var(--bird);font-weight:700}.time{font:9px DM Mono;color:#a6b5aa;margin-left:auto}.model{font:7px DM Mono;color:#607067;max-width:48%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .loader{position:fixed;inset:0;z-index:20;display:none;place-items:center;background:rgba(3,7,4,.86);backdrop-filter:blur(12px)}.loader.on{display:grid}.loadbox{text-align:center}.orb{width:58px;height:58px;margin:auto;border:1px solid rgba(201,255,70,.2);border-top-color:var(--bird);border-radius:50%;animation:spin 1s linear infinite;box-shadow:0 0 35px rgba(201,255,70,.09)}@keyframes spin{to{transform:rotate(360deg)}}#loadtext{font:9px DM Mono;color:#a8baa9;margin-top:15px}
+    @media(max-width:900px){body{overflow:auto}.shell{height:auto;min-height:100vh;grid-template-rows:auto auto 850px 380px}.pipeline{grid-template-columns:1fr}.step:not(:last-child):after{display:none}.main{grid-template-columns:1fr;grid-template-rows:500px 340px}.side{grid-template-columns:1fr 1fr;grid-template-rows:1fr 90px}.threatcard{grid-column:1/-1}.legend{display:none}.bottom{grid-template-columns:1fr;grid-template-rows:160px 160px 35px}.graphbox+.graphbox{border-left:0;border-top:1px solid var(--line);padding:8px 0 0}.controls{grid-column:1}}
+  </style>
 </head>
-
 <body>
-
-    <!-- Split View -->
-    <div class="viewport-container">
-        <!-- Original Audio View -->
-        <div class="viewport" id="view-original">
-            <div class="label original">Original Audio</div>
-        </div>
-
-        <!-- Synthesized Audio View -->
-        <div class="viewport" id="view-synth">
-            <div class="label synth">Synthesized Audio</div>
-        </div>
+<main class="shell">
+  <header class="top"><div class="brand"><i class="brandmark"></i><div><h1>Forest Sentinel</h1><div class="sub">Biodiversity mission control · Vietnam</div></div></div><div class="top-actions"><div class="live"><i class="pulse"></i> EDGE NODE 07 · ONLINE</div><button class="btn" onclick="runDemo()">▶ RUN 60S SCENARIO</button><button class="upload-top" onclick="openAudioPicker()">＋ UPLOAD AUDIO</button></div></header>
+  <section class="pipeline glass" aria-label="End-to-end AI pipeline">
+    <div class="step done"><i>01</i><div><b>Forest sensor</b><small>24/7 audio stream</small></div></div>
+    <div class="step" id="pipe-pre"><i>02</i><div><b>Edge processing</b><small>denoise · 5s windows</small></div></div>
+    <div class="step" id="pipe-ai"><i>03</i><div><b>Perch AI</b><small>1536-D embedding</small></div></div>
+    <div class="step" id="pipe-detect"><i>04</i><div><b>Detection</b><small>taxa · illegal activity</small></div></div>
+    <div class="step" id="pipe-health"><i>05</i><div><b>Eco intelligence</b><small><strong id="pipeline-result">Awaiting signal</strong></small></div></div>
+  </section>
+  <section class="main">
+    <div class="universe glass" id="universe">
+      <div class="head"><div class="eyebrow">Multidimensional acoustic embedding</div><h2>Living Soundscape</h2><p>Each node is an observed acoustic moment. Color reveals its biological signature.</p></div>
+      <div class="legend"><span><i class="dot" style="--c:var(--bird)"></i>Bird</span><span><i class="dot" style="--c:var(--frog)"></i>Amphibian</span><span><i class="dot" style="--c:var(--insect)"></i>Insect</span><span><i class="dot" style="--c:var(--mammal)"></i>Mammal</span><span><i class="dot" style="--c:var(--threat)"></i>Threat</span></div>
+      <div class="axisnote">x spectral centroid · y pitch · z bandwidth · orbit to inspect</div><div class="scanline" id="scanline"></div><div class="live-alert" id="live-alert">⚠ THREAT DETECTED</div><div class="live-detect"><small>● LIVE DETECTION · <i id="live-window">STANDBY</i></small><b id="live-label">Awaiting scenario</b><span id="live-score">Start playback to monitor</span></div>
     </div>
-
-    <!-- Controls -->
-    <div class="controls-bar">
-        <input type="file" id="file-input" accept="audio/*">
-        <button class="btn" onclick="document.getElementById('file-input').click()">
-            📁 Load Audio
-        </button>
-
-        <button class="btn original" id="play-original-btn" onclick="playOriginal()">
-            ▶ Play Original
-        </button>
-
-        <button class="btn synth" id="play-synth-btn" onclick="playSynth()">
-            ▶ Play Synthesized
-        </button>
-
-        <span class="time-display" id="time-display">0:00</span>
-
-        <button class="btn" onclick="resetAll()">
-            ↺ Reset
-        </button>
-    </div>
-
-    <!-- Downloads Section -->
-    <div class="downloads-section" id="downloads-section">
-        <span class="label">Downloads:</span>
-        <a id="dl-original" href="#" download>📥 Original Audio</a>
-        <a id="dl-synth" href="#" download>📥 Synthesized Audio</a>
-        <a id="dl-comparison" href="#" download>📊 Comparison PNG</a>
-        <a id="dl-analysis" href="#" download>📈 Analysis PNG</a>
-    </div>
-
-    <!-- Loading -->
-    <div class="loading-overlay" id="loader">
-        <div class="spinner"></div>
-        <div class="status-text" id="status-text">Processing audio...</div>
-    </div>
-
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-
-    <script>
-        // ============================================
-        // Dual 3D Visualization System
-        // ============================================
-
-        class Visualizer3D {
-            constructor(containerId, color) {
-                this.container = document.getElementById(containerId);
-                this.baseColor = color;
-                this.points = [];
-                this.lines = [];
-                this.data = [];
-                this.currentIndex = 0;
-
-                this.initThree();
-            }
-
-            initThree() {
-                // Scene
-                this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x0a0a0f);
-                this.scene.fog = new THREE.FogExp2(0x0a0a0f, 0.025);
-
-                // Camera
-                this.camera = new THREE.PerspectiveCamera(60, this.container.clientWidth / this.container.clientHeight, 0.1, 1000);
-                this.camera.position.set(12, 8, 12);
-
-                // Renderer
-                this.renderer = new THREE.WebGLRenderer({ antialias: true });
-                this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-                this.renderer.setPixelRatio(window.devicePixelRatio);
-                this.container.appendChild(this.renderer.domElement);
-
-                // Controls
-                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-                this.controls.enableDamping = true;
-                this.controls.autoRotate = true;
-                this.controls.autoRotateSpeed = 0.5;
-
-                // Groups
-                this.pointsGroup = new THREE.Group();
-                this.linesGroup = new THREE.Group();
-                this.scene.add(this.pointsGroup);
-                this.scene.add(this.linesGroup);
-
-                // Helpers
-                const grid = new THREE.GridHelper(20, 20, 0x222222, 0x111111);
-                this.scene.add(grid);
-
-                // Initial demo point
-                // this.addPoint(0, 0, 0);
-            }
-
-            addPoint(x, y, z, time) {
-                const size = 0.15;
-                const geometry = new THREE.SphereGeometry(size, 16, 16);
-
-                // Dynamic color based on height (z) and bandwidth (y)
-                const hue = (1.0 - (y / 10)) * 0.7; // Red to purple
-                const color = new THREE.Color().setHSL(hue, 1.0, 0.5);
-
-                const material = new THREE.MeshBasicMaterial({ color: color });
-                const sphere = new THREE.Mesh(geometry, material);
-                sphere.position.set(x, y, z);
-                sphere.userData.time = time; // Store time for highlighting
-
-                // Glow
-                const glowGeo = new THREE.SphereGeometry(size * 2.5, 16, 16);
-                const glowMat = new THREE.MeshBasicMaterial({
-                    color: color,
-                    transparent: true,
-                    opacity: 0.15,
-                    depthWrite: false
-                });
-                const glow = new THREE.Mesh(glowGeo, glowMat);
-                sphere.add(glow);
-
-                this.pointsGroup.add(sphere);
-                this.points.push(sphere);
-
-                // Line connection
-                if (this.points.length > 1) {
-                    const prev = this.points[this.points.length - 2];
-                    const lineGeo = new THREE.BufferGeometry().setFromPoints([prev.position, sphere.position]);
-                    const lineMat = new THREE.LineBasicMaterial({
-                        color: color,
-                        transparent: true,
-                        opacity: 0.4
-                    });
-                    const line = new THREE.Line(lineGeo, lineMat);
-                    this.linesGroup.add(line);
-                    this.lines.push(line);
-                }
-            }
-
-            update(currentTime) {
-                // Add points as time progresses (if not already added)
-                while (this.currentIndex < this.data.length &&
-                    this.data[this.currentIndex].time <= currentTime) {
-
-                    const p = this.data[this.currentIndex];
-                    // Map x, y, z to world coords (centered)
-                    // x=centroid, y=bandwidth, z=pitch
-                    this.addPoint(p.x - 5, p.z, p.y - 5, p.time);
-                    this.currentIndex++;
-                }
-
-                // Pulse points that correspond to the current time window
-                this.points.forEach(p => {
-                    const timeDiff = currentTime - p.userData.time;
-                    // Use a small window (300ms) for the pulse effect
-                    if (timeDiff >= 0 && timeDiff < 0.3) {
-                        const factor = 1.0 - (timeDiff / 0.3); // Linear decay
-                        const scale = 1.0 + factor * 2.0; // Grows up to 3x
-                        p.scale.set(scale, scale, scale);
-
-                        // Increase glow opacity
-                        if (p.children[0]) {
-                            p.children[0].material.opacity = 0.15 + factor * 0.7;
-                        }
-                    } else {
-                        // Reset to normal
-                        p.scale.set(1, 1, 1);
-                        if (p.children[0]) {
-                            p.children[0].material.opacity = 0.15;
-                        }
-                    }
-                });
-            }
-
-            reset() {
-                while (this.pointsGroup.children.length) {
-                    this.pointsGroup.remove(this.pointsGroup.children[0]);
-                }
-                while (this.linesGroup.children.length) {
-                    this.linesGroup.remove(this.linesGroup.children[0]);
-                }
-                this.points = [];
-                this.lines = [];
-                this.currentIndex = 0;
-            }
-
-            resize() {
-                this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
-                this.camera.updateProjectionMatrix();
-                this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-            }
-
-            render() {
-                this.controls.update();
-                this.renderer.render(this.scene, this.camera);
-            }
-        }
-
-        // ============================================
-        // App Controller
-        // ============================================
-
-        const vizOriginal = new Visualizer3D('view-original', 0x00d4aa);
-        const vizSynth = new Visualizer3D('view-synth', 0xff0066);
-
-        let audioOriginal = new Audio();
-        let audioSynth = new Audio();
-        let isPlaying = false;
-        let animationId;
-
-        // Sync cameras
-        /*   
-        vizOriginal.controls.addEventListener('change', () => {
-             vizSynth.camera.position.copy(vizOriginal.camera.position);
-             vizSynth.camera.rotation.copy(vizOriginal.camera.rotation);
-        });
-        */
-
-        // Main Loop
-        function animate() {
-            animationId = requestAnimationFrame(animate);
-
-            if (isPlaying) {
-                // Use the correct audio source for time based on what's playing
-                let time = 0;
-                if (currentlyPlaying === 'original') {
-                    time = audioOriginal.currentTime;
-                    vizOriginal.update(time);
-                    // Update synth points up to same time if already loaded
-                    if (vizSynth.data.length > 0) {
-                        vizSynth.update(time);
-                    }
-                } else if (currentlyPlaying === 'synth') {
-                    time = audioSynth.currentTime;
-                    vizSynth.update(time);
-                    // Also update original for comparison
-                    if (vizOriginal.data.length > 0) {
-                        vizOriginal.update(time);
-                    }
-                }
-
-                document.getElementById('time-display').textContent = formatTime(time);
-
-                // Check for end
-                if (currentlyPlaying === 'original' && audioOriginal.ended) {
-                    playOriginal(); // This will pause
-                } else if (currentlyPlaying === 'synth' && audioSynth.ended) {
-                    playSynth(); // This will pause
-                }
-            }
-
-            vizOriginal.render();
-            vizSynth.render();
-        }
-        animate();
-
-        // API Interaction
-        document.getElementById('file-input').addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            showLoading(true, "Uploading audio...");
-
-            const formData = new FormData();
-            formData.append('audio', file);
-
-            try {
-                const response = await fetch('http://localhost:5000/api/analyze', {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) throw new Error('Upload failed');
-
-                const { taskId } = await response.json();
-
-                // Start polling
-                pollStatus(taskId);
-
-            } catch (err) {
-                console.error(err);
-                alert("Error: " + err.message);
-                showLoading(false);
-            }
-        });
-
-        function pollStatus(taskId) {
-            const interval = setInterval(async () => {
-                try {
-                    const response = await fetch(`http://localhost:5000/api/status/${taskId}`);
-                    const task = await response.json();
-
-                    if (task.error) {
-                        clearInterval(interval);
-                        alert(task.status);
-                        showLoading(false);
-                        return;
-                    }
-
-                    // Update UI with detailed status
-                    showLoading(true, `${task.status} (${task.progress}%)`);
-
-                    if (task.result) {
-                        clearInterval(interval);
-                        handleAnalysisResult(task.result);
-                    }
-                } catch (err) {
-                    console.error("Polling error:", err);
-                }
-            }, 500);
-        }
-
-        function handleAnalysisResult(result) {
-            // Setup Visualization Data
-            vizOriginal.data = result.original_points;
-            vizSynth.data = result.synth_points;
-
-            // Setup Audio
-            audioOriginal.src = `http://localhost:5000${result.original_audio_url}`;
-            audioSynth.src = `http://localhost:5000${result.synth_audio_url}`;
-
-            audioOriginal.volume = 0.8;
-            audioSynth.volume = 0.8;
-
-            vizOriginal.reset();
-            vizSynth.reset();
-
-            // Populate download links
-            document.getElementById('dl-original').href = `http://localhost:5000${result.original_audio_url}`;
-            document.getElementById('dl-synth').href = `http://localhost:5000${result.synth_audio_url}`;
-
-            if (result.comparison_image_url) {
-                document.getElementById('dl-comparison').href = `http://localhost:5000${result.comparison_image_url}`;
-                document.getElementById('dl-comparison').style.display = 'inline-block';
-            }
-            if (result.analysis_image_url) {
-                document.getElementById('dl-analysis').href = `http://localhost:5000${result.analysis_image_url}`;
-                document.getElementById('dl-analysis').style.display = 'inline-block';
-            }
-
-            // Show downloads section
-            document.getElementById('downloads-section').classList.add('active');
-
-            showLoading(false);
-        }
-
-        // Tracking which audio is currently playing
-        let currentlyPlaying = null; // 'original', 'synth', or null
-
-        function playOriginal() {
-            if (vizOriginal.data.length === 0) return alert("Please load audio first!");
-
-            const btn = document.getElementById('play-original-btn');
-            const synthBtn = document.getElementById('play-synth-btn');
-
-            if (currentlyPlaying === 'original') {
-                // Pause
-                audioOriginal.pause();
-                btn.innerHTML = '▶ Play Original';
-                btn.classList.remove('playing');
-                currentlyPlaying = null;
-                isPlaying = false;
-            } else {
-                // Stop synth if playing
-                audioSynth.pause();
-                synthBtn.innerHTML = '▶ Play Synthesized';
-                synthBtn.classList.remove('playing');
-
-                // If at end, restart
-                if (audioOriginal.ended || audioOriginal.currentTime >= audioOriginal.duration) {
-                    audioOriginal.currentTime = 0;
-                }
-
-                audioOriginal.play();
-                btn.innerHTML = '⏸ Pause Original';
-                btn.classList.add('playing');
-                currentlyPlaying = 'original';
-                isPlaying = true;
-            }
-        }
-
-        function playSynth() {
-            if (vizSynth.data.length === 0) return alert("Please load audio first!");
-
-            const btn = document.getElementById('play-synth-btn');
-            const origBtn = document.getElementById('play-original-btn');
-
-            if (currentlyPlaying === 'synth') {
-                // Pause
-                audioSynth.pause();
-                btn.innerHTML = '▶ Play Synthesized';
-                btn.classList.remove('playing');
-                currentlyPlaying = null;
-                isPlaying = false;
-            } else {
-                // Stop original if playing
-                audioOriginal.pause();
-                origBtn.innerHTML = '▶ Play Original';
-                origBtn.classList.remove('playing');
-
-                // If at end, restart
-                if (audioSynth.ended || audioSynth.currentTime >= audioSynth.duration) {
-                    audioSynth.currentTime = 0;
-                }
-
-                audioSynth.play();
-                btn.innerHTML = '⏸ Pause Synthesized';
-                btn.classList.add('playing');
-                currentlyPlaying = 'synth';
-                isPlaying = true;
-            }
-        }
-
-        function resetAll() {
-            audioOriginal.pause();
-            audioSynth.pause();
-            currentlyPlaying = null;
-            isPlaying = false;
-
-            document.getElementById('play-original-btn').innerHTML = '▶ Play Original';
-            document.getElementById('play-synth-btn').innerHTML = '▶ Play Synthesized';
-            document.getElementById('play-original-btn').classList.remove('playing');
-            document.getElementById('play-synth-btn').classList.remove('playing');
-
-            vizOriginal.reset();
-            vizSynth.reset();
-            audioOriginal.currentTime = 0;
-            audioSynth.currentTime = 0;
-            document.getElementById('time-display').textContent = "0:00";
-        }
-
-        function showLoading(show, text = "Processing...") {
-            const el = document.getElementById('loader');
-            document.getElementById('status-text').textContent = text;
-            if (show) el.classList.add('active');
-            else el.classList.remove('active');
-        }
-
-        function formatTime(s) {
-            return new Date(s * 1000).toISOString().substr(14, 5);
-        }
-
-        window.addEventListener('resize', () => {
-            vizOriginal.resize();
-            vizSynth.resize();
-        });
-    </script>
+    <aside class="side">
+      <div class="card kpi glass"><div class="ring" id="health-ring"><div><strong id="health">—</strong><small>HEALTH / 100</small></div></div><div><div class="metric-label">Dominant acoustic signature</div><div class="dominant" id="dominant">Waiting for audio</div><div class="confidence" id="match">— model match</div><div class="summaryline"><span><b id="richness">—</b> groups</span><span><b id="activity">—</b> active</span></div></div></div>
+      <div class="card who glass"><div class="cardtitle"><b>Who is here?</b><span>GROUP DISTRIBUTION</span></div><div class="taxa" id="taxa"></div><div class="species"><div class="species-title">Perch species candidates · ranked</div><div id="species-list"><div class="disclaimer">Import audio to inspect candidate taxa</div></div><div class="disclaimer">Candidates are exploratory rankings, not calibrated species confirmations.</div></div></div>
+      <div class="card threatcard glass" id="threat-card"><div class="threathead"><div class="shield">◇</div><div><b id="threat-title">Threat scanner armed</b><span>CHAINSAW · GUNSHOT</span></div></div><div class="threatmsg" id="threat-message">No evidence analyzed yet</div></div>
+    </aside>
+  </section>
+  <section class="bottom glass">
+    <div class="graphbox"><div class="timeline-head"><b>Ecological event timeline</b><span>5S WINDOWS</span></div><canvas id="timeline"></canvas></div>
+    <div class="graphbox"><div class="timeline-head anomaly-head"><b>Threat anomaly monitor</b><span>● ALERT THRESHOLD 75</span></div><div class="anomaly-wrap"><canvas id="anomaly"></canvas><div class="alert-feed" id="alert-feed"></div></div></div>
+    <div class="controls"><input id="file" type="file" accept="audio/*"><button class="btn primary" onclick="runDemo()">▶ Run mixed forest demo</button><button class="btn" onclick="openAudioPicker()">＋ Upload own recording</button><button class="btn" id="play" onclick="togglePlay()">▶ Play evidence</button><button class="btn" onclick="resetView()">↺ Reset orbit</button><span class="model" id="model">MODEL · STANDBY</span><span class="time" id="clock">00:00 / 00:00</span></div>
+  </section>
+</main>
+<div class="loader" id="loader"><div class="loadbox"><div class="orb"></div><div id="loadtext">INITIALIZING EDGE PIPELINE</div></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const COLORS={Aves:0xc9ff46,Amphibia:0x4de6c1,Insecta:0xffd166,Mammalia:0xb98cff,Threat:0xff5e57};
+const CSSCOLORS={Aves:'#c9ff46',Amphibia:'#4de6c1',Insecta:'#ffd166',Mammalia:'#b98cff',Threat:'#ff5e57'};
+const NAMES={Aves:'Birds',Amphibia:'Amphibians',Insecta:'Insects',Mammalia:'Mammals'};
+const API_BASE=location.hostname.endsWith('.vercel.app')?'https://forest-sentinel-production.up.railway.app':'';
+const apiUrl=path=>`${API_BASE}${path}`;
+let state={summary:null,points:[],duration:0}, audio=new Audio(), playing=false;
+
+class AcousticUniverse{
+  constructor(el){this.el=el;this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0x080d09);this.scene.fog=new THREE.FogExp2(0x080d09,.027);this.camera=new THREE.PerspectiveCamera(48,1,.1,200);this.camera.position.set(12,8,13);this.renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));el.appendChild(this.renderer.domElement);this.controls=new THREE.OrbitControls(this.camera,this.renderer.domElement);this.controls.enableDamping=true;this.controls.autoRotate=true;this.controls.autoRotateSpeed=.35;this.group=new THREE.Group();this.scene.add(this.group);this.addSpace();this.resize()}
+  addSpace(){const grid=new THREE.GridHelper(18,18,0x35513d,0x16251a);grid.material.transparent=true;grid.material.opacity=.45;this.scene.add(grid);const geo=new THREE.BufferGeometry();const verts=[];for(let i=0;i<180;i++)verts.push((Math.random()-.5)*24,Math.random()*13-1,(Math.random()-.5)*24);geo.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));const stars=new THREE.Points(geo,new THREE.PointsMaterial({color:0x55735e,size:.025,transparent:true,opacity:.55}));this.scene.add(stars)}
+  groupAt(t){const windows=state.summary?.window_predictions||[];if(!windows.length)return 'Aves';let best=windows[0];for(const w of windows)if(Math.abs(w.time-t)<Math.abs(best.time-t))best=w;return best.group}
+  setData(points,summary){while(this.group.children.length)this.group.remove(this.group.children[0]);const threatTimes=(summary.events||[]).filter(e=>e.is_threat).map(e=>e.time);const step=Math.max(1,Math.ceil(points.length/650));const positions={},buckets={};for(const key of Object.keys(COLORS)){positions[key]=[];buckets[key]=[]}for(let i=0;i<points.length;i+=step){const p=points[i],isThreat=threatTimes.some(t=>Math.abs(t-p.time)<3),group=isThreat?'Threat':this.groupAt(p.time);positions[group].push((p.x-5)*1.28,p.z*.82,(p.y-5)*1.28);buckets[group].push(p.time)}for(const key of Object.keys(positions)){if(!positions[key].length)continue;const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(positions[key],3));const mat=new THREE.PointsMaterial({color:COLORS[key],size:key==='Threat'?.22:.11,transparent:true,opacity:.87,blending:THREE.AdditiveBlending,depthWrite:false});const cloud=new THREE.Points(geo,mat);cloud.userData={times:buckets[key],baseSize:mat.size};this.group.add(cloud)}this.addCentroids()}
+  addCentroids(){this.group.children.forEach(cloud=>{const pos=cloud.geometry.attributes.position;if(!pos?.count)return;const c=new THREE.Vector3();for(let i=0;i<pos.count;i++)c.add(new THREE.Vector3(pos.getX(i),pos.getY(i),pos.getZ(i)));c.divideScalar(pos.count);const ring=new THREE.Mesh(new THREE.RingGeometry(.25,.27,40),new THREE.MeshBasicMaterial({color:cloud.material.color,transparent:true,opacity:.35,side:THREE.DoubleSide}));ring.position.copy(c);ring.rotation.x=Math.PI/2;this.group.add(ring)})}
+  update(time){this.group.children.forEach(c=>{if(!c.userData?.times)return;const near=c.userData.times.some(t=>Math.abs(t-time)<.18);c.material.size=near?c.userData.baseSize*2.4:c.userData.baseSize})}
+  reset(){this.camera.position.set(12,8,13);this.controls.target.set(0,3,0)} resize(){const w=this.el.clientWidth,h=this.el.clientHeight;this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.renderer.setSize(w,h)} render(){this.controls.update();this.renderer.render(this.scene,this.camera)}}
+const universe=new AcousticUniverse(document.getElementById('universe'));
+function openAudioPicker(){document.getElementById('file').click()}
+async function runDemo(){showLoader(true,'LOADING 60-SECOND FOREST SCENARIO');try{const res=await fetch(apiUrl('/api/demo'),{method:'POST'}),body=await res.json();if(!res.ok)throw Error(body.error||'Demo unavailable');poll(body.taskId)}catch(err){showLoader(false);alert(err.message)}}
+
+function drawTimeline(){const c=document.getElementById('timeline'),dpr=Math.min(devicePixelRatio,2),r=c.getBoundingClientRect();c.width=r.width*dpr;c.height=r.height*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);x.clearRect(0,0,r.width,r.height);const lanes=['Aves','Amphibia','Insecta','Mammalia','Threat'],labelW=72,plotW=r.width-labelW-8,laneH=r.height/lanes.length,duration=Math.max(state.duration,1);x.font='7px DM Mono';lanes.forEach((lane,i)=>{const y=i*laneH;x.fillStyle='#788b7d';x.fillText(lane==='Threat'?'THREAT':NAMES[lane].toUpperCase(),0,y+laneH*.68);x.fillStyle='rgba(255,255,255,.035)';x.fillRect(labelW,y,plotW,laneH-2)});for(const w of state.summary?.window_predictions||[]){const scores=w.scores||{};lanes.slice(0,4).forEach((lane,i)=>{const alpha=Math.max(.05,(scores[lane]||0)/100),left=labelW+(w.time/duration)*plotW,width=Math.max(3,(w.duration/duration)*plotW);x.globalAlpha=alpha;x.fillStyle=CSSCOLORS[lane];x.fillRect(left,i*laneH+2,width,laneH-6)});x.globalAlpha=1}for(const e of state.summary?.events||[]){if(!e.is_threat)continue;const left=labelW+(e.time/duration)*plotW;x.fillStyle=CSSCOLORS.Threat;x.fillRect(left,4*laneH+2,Math.max(5,5/duration*plotW),laneH-6)}if(audio.currentTime){const px=labelW+(audio.currentTime/duration)*plotW;x.strokeStyle='#fff';x.globalAlpha=.8;x.beginPath();x.moveTo(px,0);x.lineTo(px,r.height);x.stroke();x.globalAlpha=1}}
+
+function drawAnomaly(){const c=document.getElementById('anomaly'),dpr=Math.min(devicePixelRatio,2),r=c.getBoundingClientRect();c.width=r.width*dpr;c.height=r.height*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);x.clearRect(0,0,r.width,r.height);const pad={l:28,r:8,t:7,b:15},w=r.width-pad.l-pad.r,h=r.height-pad.t-pad.b,duration=Math.max(state.duration,1),threshold=state.summary?.threat_threshold||75;
+  x.font='6px DM Mono';[0,25,50,75,100].forEach(v=>{const y=pad.t+h-(v/100*h);x.strokeStyle=v===threshold?'rgba(255,94,87,.65)':'rgba(255,255,255,.055)';x.setLineDash(v===threshold?[4,3]:[]);x.beginPath();x.moveTo(pad.l,y);x.lineTo(pad.l+w,y);x.stroke();x.fillStyle=v===threshold?'#ff7770':'#5f7165';x.fillText(v,pad.l-19,y+2)});x.setLineDash([]);
+  const data=state.summary?.threat_timeline||[];[{type:'chainsaw',color:'#ff5e57'},{type:'gunshot',color:'#ffb347'}].forEach(series=>{const pts=data.filter(v=>v.type===series.type).sort((a,b)=>a.time-b.time);if(!pts.length)return;x.beginPath();pts.forEach((p,i)=>{const px=pad.l+(p.time/duration)*w,py=pad.t+h-(p.anomaly_score/100*h);i?x.lineTo(px,py):x.moveTo(px,py)});x.strokeStyle=series.color;x.lineWidth=1.5;x.shadowColor=series.color;x.shadowBlur=7;x.stroke();x.shadowBlur=0;pts.filter(p=>p.detected).forEach(p=>{const px=pad.l+(p.time/duration)*w,py=pad.t+h-(p.anomaly_score/100*h);const grad=x.createRadialGradient(px,py,0,px,py,13);grad.addColorStop(0,'rgba(255,94,87,.55)');grad.addColorStop(1,'rgba(255,94,87,0)');x.fillStyle=grad;x.beginPath();x.arc(px,py,13,0,Math.PI*2);x.fill();x.fillStyle=series.color;x.beginPath();x.arc(px,py,2.8,0,Math.PI*2);x.fill()})});
+  x.shadowBlur=0;x.fillStyle='#718176';x.fillText('0s',pad.l,r.height-2);x.fillText(fmt(duration),pad.l+w-27,r.height-2);x.fillStyle='#ff7c75';x.fillText('CHAINSAW',pad.l+5,pad.t+8);x.fillStyle='#ffb347';x.fillText('GUNSHOT',pad.l+58,pad.t+8);if(audio.currentTime){const px=pad.l+(audio.currentTime/duration)*w;x.strokeStyle='rgba(255,255,255,.75)';x.beginPath();x.moveTo(px,pad.t);x.lineTo(px,pad.t+h);x.stroke()}}
+
+function updateLiveDetection(time){if(!state.summary)return;const windows=state.summary.window_predictions||[],window=windows.reduce((best,item)=>!best||Math.abs(time-(item.time+2.5))<Math.abs(time-(best.time+2.5))?item:best,null),threat=(state.summary.threat_events||[]).find(e=>time>=e.time&&time<=e.end_time),alert=document.getElementById('live-alert'),card=document.getElementById('threat-card');document.getElementById('live-window').textContent=`${fmt(time)} / WINDOW ${window?fmt(window.time):'—'}`;
+  if(threat){document.getElementById('live-label').textContent=threat.label;document.getElementById('live-score').textContent=`${threat.match_score}% match · anomaly ${threat.anomaly_score}/100`;alert.textContent=`⚠ ${threat.threat_type.toUpperCase()} DETECTED · ${fmt(threat.time)}–${fmt(threat.end_time)}`;alert.classList.toggle('on',playing);card.classList.toggle('alert',playing);document.getElementById('threat-title').textContent=playing?`${threat.threat_type.toUpperCase()} ALERT NOW`:`${state.summary.threat_events.length} threat interval(s) found`;document.getElementById('threat-message').textContent=`Evidence window ${fmt(threat.time)}–${fmt(threat.end_time)} · ${threat.match_score}% match`}
+  else if(window){const score=window.scores?.[window.group]||0;document.getElementById('live-label').textContent=NAMES[window.group]||window.group;document.getElementById('live-score').textContent=`${score}% window match · activity ${window.activity}%`;alert.classList.remove('on');card.classList.remove('alert');document.getElementById('threat-title').textContent='Live threat scan clear';document.getElementById('threat-message').textContent='Monitoring chainsaw and gunshot anomaly channels'}}
+
+function updateDashboard(s){state.summary=s;document.getElementById('health').textContent=s.health_score;document.getElementById('health-ring').style.background=`conic-gradient(var(--bird) ${s.health_score*3.6}deg,#243027 0)`;document.getElementById('dominant').textContent=s.dominant_label;document.getElementById('match').textContent=`${s.match_score}% model match`;document.getElementById('richness').textContent=s.richness;document.getElementById('activity').textContent=`${s.activity_rate}%`;document.getElementById('pipeline-result').textContent=`Health ${s.health_score}/100`;document.querySelectorAll('.step').forEach(e=>e.classList.add('done'));
+  const dist=s.group_distribution||{},taxa=document.getElementById('taxa');taxa.innerHTML=Object.keys(NAMES).map(k=>`<div class="taxonrow"><span>${NAMES[k]}</span><div class="bar"><i style="--c:${CSSCOLORS[k]};width:${dist[k]||0}%"></i></div><b>${dist[k]||0}%</b></div>`).join('');
+  const species=document.getElementById('species-list'),items=s.species_candidates||[];species.innerHTML=items.length?items.map((v,i)=>`<div class="species-item"><span class="rank">0${i+1}</span><span><b>${escapeHtml(v.common_name)}</b><em>${escapeHtml(v.scientific_name)} · ${escapeHtml(v.group)}</em></span><strong>${v.rank_score}</strong></div>`).join(''):'<div class="disclaimer">Species ranking unavailable in fallback mode</div>';
+  const tc=document.getElementById('threat-card'),threatEvents=s.threat_events||[];tc.classList.remove('alert');document.getElementById('threat-title').textContent=s.threat_detected?`${threatEvents.length} threat interval(s) found`:'No illegal activity detected';document.getElementById('threat-message').textContent=s.threat_detected?'Press play to watch alerts trigger at their evidence windows':s.threat_status;document.getElementById('alert-feed').innerHTML=threatEvents.map(e=>`<span class="alert-pill">⚠ ${fmt(e.time)}–${fmt(e.end_time)} ${e.threat_type.toUpperCase()}</span>`).join('');document.getElementById('model').textContent=`${s.model_source} · ${s.windows_analyzed} windows · ${s.inference_ms} ms`;drawTimeline();drawAnomaly();updateLiveDetection(0)}
+function escapeHtml(v){const d=document.createElement('div');d.textContent=v;return d.innerHTML}
+document.getElementById('file').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;showLoader(true,'UPLOADING FOREST AUDIO');setPipe('pipe-pre');const fd=new FormData();fd.append('audio',f);try{const res=await fetch(apiUrl('/api/analyze'),{method:'POST',body:fd});if(!res.ok)throw Error('Upload failed');const {taskId}=await res.json();poll(taskId)}catch(err){showLoader(false);alert(err.message)}});
+function setPipe(id){document.getElementById(id)?.classList.add('active')}
+function poll(id){const timer=setInterval(async()=>{try{const r=await fetch(apiUrl(`/api/status/${id}`)),t=await r.json();if(t.error){clearInterval(timer);showLoader(false);alert(t.status);return}document.getElementById('loadtext').textContent=`${t.status.toUpperCase()} · ${t.progress}%`;if(t.progress>20)setPipe('pipe-pre');if(t.progress>55)setPipe('pipe-ai');if(t.progress>70)setPipe('pipe-detect');if(t.result){clearInterval(timer);acceptResult(t.result)}}catch(e){console.error(e)}},400)}
+function acceptResult(r){state.points=r.original_points||[];state.duration=r.duration_seconds||0;audio.src=apiUrl(r.original_audio_url);universe.setData(state.points,r.forest_summary);updateDashboard(r.forest_summary);showLoader(false);document.getElementById('play').textContent='▶ Play evidence'}
+function togglePlay(){if(!audio.src)return alert('Analyze an audio recording first.');if(playing){audio.pause()}else{if(audio.ended)audio.currentTime=0;audio.play()}playing=!playing;document.getElementById('play').textContent=playing?'Ⅱ Pause evidence':'▶ Play evidence';document.getElementById('scanline').classList.toggle('playing',playing);updateLiveDetection(audio.currentTime)}
+function resetView(){universe.reset();audio.currentTime=0;updateLiveDetection(0);drawTimeline();drawAnomaly()}function showLoader(on,text='PROCESSING'){document.getElementById('loader').classList.toggle('on',on);document.getElementById('loadtext').textContent=text}
+function fmt(s){s=Math.max(0,Math.floor(s||0));return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`}
+audio.addEventListener('ended',()=>{playing=false;document.getElementById('play').textContent='▶ Play evidence';document.getElementById('scanline').classList.remove('playing');updateLiveDetection(audio.currentTime)});
+function loop(){requestAnimationFrame(loop);if(playing){universe.update(audio.currentTime);updateLiveDetection(audio.currentTime);const pct=state.duration?audio.currentTime/state.duration*100:0;document.getElementById('scanline').style.left=`${pct}%`;drawTimeline();drawAnomaly()}document.getElementById('clock').textContent=`${fmt(audio.currentTime)} / ${fmt(state.duration)}`;universe.render()}loop();
+window.addEventListener('resize',()=>{universe.resize();drawTimeline();drawAnomaly()});drawTimeline();drawAnomaly();
+</script>
 </body>
-
 </html>
